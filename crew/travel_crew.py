@@ -24,4 +24,7 @@ def run_travel_crew(inputs: dict[str, str]) -> str:
         verbose=False,
         memory=False,
     )
-    return str(crew.kickoff(inputs=inputs)).strip()
+    crew_output = crew.kickoff(inputs=inputs)
+    if len(crew_output.tasks_output) < 2:
+        raise RuntimeError("The travel crew did not return its itinerary task output")
+    return str(crew_output.tasks_output[-2].raw).strip()

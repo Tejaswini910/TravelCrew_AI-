@@ -147,6 +147,76 @@ def _select_budget_options(
     return hotel, transport, budget, selected_attractions, food_allowance, alternatives
 
 
+def _build_final_report(
+    request: TripRequest,
+    budget: dict[str, Any],
+    hotel: dict[str, Any],
+    transport: dict[str, Any],
+    attractions: list[dict[str, Any]],
+    weather: dict[str, Any],
+    search: dict[str, Any],
+    alternatives: list[str],
+    itinerary: str,
+) -> str:
+    lines = [
+        "## Trip Summary",
+        f"- Destination: {request.destination}",
+        f"- Starting location: {request.origin}",
+        f"- Travel dates: {request.start_date.isoformat()} to {request.end_date.isoformat()}",
+        f"- Duration: {request.duration_days} days for {request.travelers} traveler(s)",
+        f"- Budget: ${request.budget_usd:,.2f} USD",
+        "",
+        "## Recommended Attractions",
+    ]
+    if attractions:
+        lines.extend(
+            f"- {item.get('name', 'Research result')} (estimated admission: ${float(item.get('admission_usd', 0)):,.2f} per person)"
+            for item in attractions
+        )
+    else:
+        lines.append("- No verified attractions were found in the available research.")
+
+    lines.extend(
+        [
+            "",
+            "## Hotel Recommendation",
+            f"- {hotel.get('name', 'Unavailable')}: ${float(hotel.get('estimated_total_usd', 0)):,.2f} USD estimated total",
+            "- Mock estimate only; confirm real availability, taxes, and fees.",
+            "",
+            "## Transport Recommendation",
+            f"- {transport.get('name', 'Unavailable')}: ${float(transport.get('estimated_total_usd', 0)):,.2f} USD estimated total",
+            "- Mock estimate only; confirm actual schedules and fares.",
+            "",
+            "## Weather",
+            str(weather.get("summary", "No weather summary is available.")),
+            f"- Source: {weather.get('source', 'unknown')}",
+            "",
+            "## Day-by-Day Itinerary",
+            itinerary or "No itinerary was returned by the itinerary planner.",
+            "",
+            "## Expense Breakdown",
+            f"- Hotel: ${float(budget['hotel_cost_usd']):,.2f} USD",
+            f"- Transport: ${float(budget['transport_cost_usd']):,.2f} USD",
+            f"- Food: ${float(budget['food_cost_usd']):,.2f} USD",
+            f"- Attractions: ${float(budget['attraction_cost_usd']):,.2f} USD",
+            f"- Grand total: ${float(budget['grand_total_usd']):,.2f} USD",
+            "",
+            "## Budget Comparison",
+        ]
+    )
+    if budget["within_budget"]:
+        lines.append(f"- Within budget; ${float(budget['remaining_budget_usd']):,.2f} remaining.")
+    else:
+        lines.append(f"- Budget exceeded by ${float(budget['budget_exceeded_usd']):,.2f}.")
+
+    lines.extend(["", "## Alternatives"])
+    lines.extend(f"- {alternative}" for alternative in alternatives) if alternatives else lines.append("- No budget alternatives were needed.")
+    lines.extend(["", "## Research Sources"])
+    sources = [str(item.get("url")) for item in search.get("results", []) if isinstance(item, dict) and item.get("url")]
+    lines.extend(f"- {source}" for source in sources) if sources else lines.append("- No online research sources were used.")
+    return "\n".join(lines)
+
+
 def plan_trip(request: TripRequest) -> PlanningResult:
     """Gather tool evidence, revise costs if needed, then run the sequential agent crew."""
     check_ollama()
@@ -211,9 +281,18 @@ def plan_trip(request: TripRequest) -> PlanningResult:
         request.duration_days,
         settings.enable_web_search,
     )
-    report = run_travel_crew(crew_inputs)
-    if not report:
-        raise RuntimeError("The travel crew returned an empty report")
+    itinerary = run_travel_crew(crew_inputs)
+    report = _build_final_report(
+        request,
+        budget,
+        hotel,
+        transport,
+        selected_attractions,
+        weather,
+        search,
+        alternatives,
+        itinerary,
+    )
     return PlanningResult(
         request=request,
         report=report,
