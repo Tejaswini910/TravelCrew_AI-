@@ -13,7 +13,8 @@ Streamlit Community Cloud cannot connect to Ollama running on your personal comp
 Requires Python 3.10+ and Ollama installed locally.
 
 ```powershell
-cd travel_planner
+git clone https://github.com/Tejaswini910/TravelCrew_AI-.git
+cd TravelCrew_AI-
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -23,7 +24,7 @@ Copy-Item .env.example .env
 streamlit run streamlit_app.py
 ```
 
-The app opens at `http://localhost:8501`. `OLLAMA_MODEL=llama3.2` is translated to CrewAI's Ollama provider identifier `ollama/llama3.2`. No model API key is set or required.
+The `.env.example` defaults to local Ollama at `http://localhost:11434`; local Ollama does not require an API key. The app opens at `http://localhost:8501`. `OLLAMA_MODEL=llama3.2` is translated to CrewAI's Ollama provider identifier `ollama/llama3.2`.
 
 ## Deploy to Streamlit Community Cloud
 
@@ -62,7 +63,7 @@ python -m pytest
 ## Project layout
 
 ```text
-travel_planner/
+TravelCrew_AI-/
   agents/       CrewAI role definitions
   config/       Ollama and runtime settings
   crew/         Sequential crew orchestration
