@@ -10,6 +10,7 @@ def local_llm() -> LLM:
     return LLM(
         model=settings.crewai_model,
         base_url=settings.ollama_base_url,
+        api_key=settings.ollama_api_key,
         temperature=0.2,
         timeout=settings.ollama_timeout_seconds,
     )

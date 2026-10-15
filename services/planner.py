@@ -8,7 +8,7 @@ import time
 from itertools import product
 from typing import Any
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from travel_planner.config.settings import get_settings
 from travel_planner.crew.travel_crew import run_travel_crew
@@ -36,9 +36,11 @@ def check_ollama() -> None:
     settings = get_settings()
     payload: dict[str, Any] | None = None
     last_error: Exception | None = None
+    headers = {"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {}
     for attempt in range(2):
         try:
-            with urlopen(f"{settings.ollama_base_url}/api/tags", timeout=settings.ollama_timeout_seconds) as response:
+            request = Request(f"{settings.ollama_base_url}/api/tags", headers=headers)
+            with urlopen(request, timeout=settings.ollama_timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             break
         except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:

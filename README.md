@@ -25,6 +25,20 @@ streamlit run streamlit_app.py
 
 The app opens at `http://localhost:8501`. `OLLAMA_MODEL=llama3.2` is translated to CrewAI's Ollama provider identifier `ollama/llama3.2`. No model API key is set or required.
 
+## Deploy to Streamlit Community Cloud
+
+1. Connect `Tejaswini910/TravelCrew_AI-` and select branch `main`.
+2. Set the main file path to `streamlit_app.py`.
+3. In the app's **Settings → Secrets**, configure the Ollama endpoint:
+
+```toml
+OLLAMA_BASE_URL = "https://your-secure-ollama-host"
+OLLAMA_MODEL = "llama3.2"
+OLLAMA_API_KEY = "your-endpoint-key-if-required"
+```
+
+`OLLAMA_API_KEY` is optional and only applies when the remote endpoint requires authentication. Do not use `http://localhost:11434` in Streamlit Cloud: it points to the app container, not your computer. The remote endpoint must provide Ollama's `/api/tags` and `/v1/chat/completions` routes over HTTPS. Do not expose an unauthenticated Ollama server to the public internet. Never paste a real key into GitHub or `.env.example`.
+
 ## Offline behavior and tools
 
 - **Destination search:** a bundled city catalog works offline. Unknown destinations return no verified offline results instead of fabricated attractions. Set `ENABLE_WEB_SEARCH=true` to optionally use keyless DuckDuckGo search; network errors fall back to local results.
