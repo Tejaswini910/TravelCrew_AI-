@@ -5,13 +5,26 @@ from __future__ import annotations
 import logging
 import sys
 from datetime import date
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import streamlit as st
 from pydantic import ValidationError
 
-# Streamlit does not consistently add the project parent to the import path.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# The repository may be checked out as "travelcrew_ai-" instead of "travel_planner".
+project_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(project_root.parent))
+if "travel_planner" not in sys.modules:
+    package_spec = spec_from_file_location(
+        "travel_planner",
+        project_root / "__init__.py",
+        submodule_search_locations=[str(project_root)],
+    )
+    if package_spec is None or package_spec.loader is None:
+        raise ImportError(f"Could not load the travel_planner package from {project_root}")
+    package = module_from_spec(package_spec)
+    sys.modules["travel_planner"] = package
+    package_spec.loader.exec_module(package)
 
 from travel_planner.logging_config import configure_logging
 from travel_planner.models import TripRequest
