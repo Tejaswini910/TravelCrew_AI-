@@ -33,12 +33,12 @@ The `.env.example` defaults to local Ollama at `http://localhost:11434`; local O
 3. In the app's **Settings → Secrets**, configure the Ollama endpoint:
 
 ```toml
-OLLAMA_BASE_URL = "https://your-secure-ollama-host"
-OLLAMA_MODEL = "llama3.2"
-OLLAMA_API_KEY = "your-endpoint-key-if-required"
+OLLAMA_BASE_URL = "https://ollama.com/v1"
+OLLAMA_MODEL = "gemma4:31b"
+OLLAMA_API_KEY = "your-ollama-cloud-key"
 ```
 
-`OLLAMA_API_KEY` is optional and only applies when the remote endpoint requires authentication. Do not use `http://localhost:11434` in Streamlit Cloud: it points to the app container, not your computer. The remote endpoint must provide Ollama's `/api/tags` and `/v1/chat/completions` routes over HTTPS. Do not expose an unauthenticated Ollama server to the public internet. Never paste a real key into GitHub or `.env.example`.
+Use a cloud model listed by Ollama, such as `gemma4:31b`; locally downloaded names such as `llama3.2` may not be available to direct cloud API access. The Ollama Cloud OpenAI-compatible base URL is `https://ollama.com/v1`, not `/api`; the app appends `/models` for its cloud preflight and CrewAI calls `/chat/completions`. A legacy `https://ollama.com/api` setting is normalized to `/v1`. The app checks `/api/tags` only for loopback/local Ollama. Streamlit Cloud cannot use `http://localhost:11434` to reach your computer. Never paste a real key into GitHub or `.env.example`.
 
 ## Offline behavior and tools
 

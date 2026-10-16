@@ -39,3 +39,26 @@ def test_streamlit_secrets_supply_remote_ollama_settings(monkeypatch) -> None:
         assert settings.ollama_api_key == "test-only-key"
     finally:
         get_settings.cache_clear()
+
+
+def test_ollama_cloud_api_base_normalizes_to_openai_compatible_v1(monkeypatch) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://ollama.com/api")
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma4:31b")
+    monkeypatch.setenv("OLLAMA_API_KEY", "test-only-key")
+    get_settings.cache_clear()
+    try:
+        settings = get_settings()
+        assert settings.ollama_base_url == "https://ollama.com/v1"
+        assert settings.provider == "ollama-cloud"
+        assert settings.safe_endpoint == "https://ollama.com/v1"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_placeholder_api_key_is_not_considered_loaded(monkeypatch) -> None:
+    monkeypatch.setenv("OLLAMA_API_KEY", "your-key-if-the-server-requires-one")
+    get_settings.cache_clear()
+    try:
+        assert get_settings().ollama_api_key is None
+    finally:
+        get_settings.cache_clear()

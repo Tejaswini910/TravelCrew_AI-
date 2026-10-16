@@ -7,7 +7,7 @@ import logging
 import time
 from itertools import product
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from travel_planner.config.settings import get_settings
@@ -32,32 +32,58 @@ class PlanningToolError(RuntimeError):
 
 
 def check_ollama() -> None:
-    """Verify that Ollama responds and the requested model is installed."""
+    """Verify the configured local or remote Ollama endpoint and requested model."""
     settings = get_settings()
     payload: dict[str, Any] | None = None
     last_error: Exception | None = None
-    headers = {"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {}
+    if settings.is_local_endpoint:
+        endpoint = f"{settings.ollama_base_url}/api/tags"
+        headers: dict[str, str] = {}
+    else:
+        if settings.provider == "ollama-cloud" and not settings.ollama_api_key:
+            raise OllamaUnavailableError("Ollama Cloud requires OLLAMA_API_KEY in Streamlit Secrets.")
+        endpoint = f"{settings.ollama_base_url}/models"
+        headers = {"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {}
     for attempt in range(2):
         try:
-            request = Request(f"{settings.ollama_base_url}/api/tags", headers=headers)
+            request = Request(endpoint, headers=headers)
             with urlopen(request, timeout=settings.ollama_timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             break
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise OllamaUnavailableError("Ollama rejected OLLAMA_API_KEY; check the Streamlit Secret value.") from exc
+            if exc.code == 404 and settings.provider == "ollama-cloud":
+                raise OllamaUnavailableError(
+                    "Ollama Cloud endpoint was not found. Set OLLAMA_BASE_URL to https://ollama.com/v1."
+                ) from exc
+            last_error = exc
+            if attempt == 0:
+                time.sleep(0.25)
         except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             last_error = exc
             if attempt == 0:
                 time.sleep(0.25)
     if payload is None:
-        raise OllamaUnavailableError(
-            f"Cannot reach Ollama at {settings.ollama_base_url}. Start Ollama and run `ollama pull {settings.model}`. "
-            "For Streamlit Cloud, localhost refers to the cloud container, not your computer."
-        ) from last_error
+        if settings.is_local_endpoint:
+            message = f"Cannot reach local Ollama at {settings.safe_endpoint}. Start Ollama and run `ollama pull {settings.model}`."
+        else:
+            message = f"Cannot reach configured Ollama endpoint at {settings.safe_endpoint}. Check its URL and network access."
+        raise OllamaUnavailableError(message) from last_error
 
-    requested = settings.model.removeprefix("ollama/").split(":", 1)[0]
-    available = [str(item.get("name", "")) for item in payload.get("models", [])]
-    if not any(name.split(":", 1)[0] == requested for name in available):
+    requested = settings.model.removeprefix("ollama/")
+    if settings.is_local_endpoint:
+        available = [str(item.get("name", "")) for item in payload.get("models", [])]
+    else:
+        available = [str(item.get("id", "")) for item in payload.get("data", [])]
+    if settings.is_local_endpoint:
+        model_found = any(name.split(":", 1)[0] == requested.split(":", 1)[0] for name in available)
+    else:
+        model_found = requested in available
+    if not model_found:
         raise OllamaUnavailableError(
-            f"Ollama is running, but model '{settings.model}' is not installed. Run `ollama pull {settings.model}`."
+            f"Model '{settings.model}' is not listed by the configured Ollama endpoint. "
+            "For Ollama Cloud, choose an available cloud model name; local models do not need to be pulled for cloud use."
         )
 
 

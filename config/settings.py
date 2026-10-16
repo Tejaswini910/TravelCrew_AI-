@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 
@@ -24,6 +25,28 @@ class Settings:
     def crewai_model(self) -> str:
         """Return CrewAI/LiteLLM's Ollama model identifier."""
         return self.model if self.model.startswith("ollama/") else f"ollama/{self.model}"
+
+    @property
+    def is_local_endpoint(self) -> bool:
+        hostname = (urlsplit(self.ollama_base_url).hostname or "").lower()
+        return hostname in {"localhost", "127.0.0.1", "::1"}
+
+    @property
+    def provider(self) -> str:
+        if self.is_local_endpoint:
+            return "ollama-local"
+        if (urlsplit(self.ollama_base_url).hostname or "").lower() == "ollama.com":
+            return "ollama-cloud"
+        return "ollama-remote"
+
+    @property
+    def safe_endpoint(self) -> str:
+        """Return endpoint location without any embedded credentials or query values."""
+        parsed = urlsplit(self.ollama_base_url)
+        host = parsed.hostname or ""
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
 
 
 def _as_bool(value: str, default: bool = False) -> bool:
@@ -56,8 +79,14 @@ def _setting(name: str, default: str = "") -> str:
 def get_settings() -> Settings:
     """Load and validate settings once per application process."""
     base_url = _setting("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    api_key = _setting("OLLAMA_API_KEY") or None
+    if api_key and api_key.lower().startswith(("your-", "your_", "replace-", "replace_", "placeholder")):
+        api_key = None
     if not base_url.startswith(("http://", "https://")):
         raise ValueError("OLLAMA_BASE_URL must start with http:// or https://")
+    parsed_url = urlsplit(base_url)
+    if (parsed_url.hostname or "").lower() == "ollama.com" and parsed_url.path.rstrip("/") in {"", "/api"}:
+        base_url = urlunsplit(parsed_url._replace(path="/v1"))
     timeout = int(_setting("OLLAMA_TIMEOUT_SECONDS", "180"))
     if timeout < 1 or timeout > 300:
         raise ValueError("OLLAMA_TIMEOUT_SECONDS must be between 1 and 300")
@@ -65,7 +94,7 @@ def get_settings() -> Settings:
     return Settings(
         ollama_base_url=base_url,
         model=model,
-        ollama_api_key=_setting("OLLAMA_API_KEY") or None,
+        ollama_api_key=api_key,
         enable_web_search=_as_bool(_setting("ENABLE_WEB_SEARCH", "false")),
         ollama_timeout_seconds=timeout,
         log_level=_setting("LOG_LEVEL", "INFO").upper(),
